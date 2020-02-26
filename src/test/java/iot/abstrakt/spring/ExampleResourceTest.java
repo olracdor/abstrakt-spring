@@ -1,37 +1,45 @@
 package iot.abstrakt.spring;
 
-import io.quarkus.test.junit.QuarkusTest;
 import iot.abstrakt.spring.annotation.Mapper;
 import iot.abstrakt.spring.annotation.MapperParam;
 import iot.abstrakt.spring.annotation.MessageTransformer;
 import iot.abstrakt.spring.azure.function.AbstractFunction;
-import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
-import org.jboss.resteasy.annotations.jaxrs.PathParam;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
+import org.springframework.stereotype.Service;
 
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
-@QuarkusTest
+
 public class ExampleResourceTest {
 
-    @Test
+
     public void testHelloEndpoint() {
+
+        @Component
         class Function extends AbstractFunction {
 
+            @Autowired
             SampleService service;
 
-            public void process(){ //service.find(1);
+            public void process(){
+
+                service.findAll(1);
                  }
+
 
         }
         Function m = new Function();
-        m.process();
+       // m.process();
     }
 
-    @Test
+
     public void testMapper() {
         class Function extends AbstractFunction {
 
@@ -52,15 +60,12 @@ public class ExampleResourceTest {
         Object transform(@MapperParam("id") Integer id, @Mapper String mapper);
     }
 
-    @Path("/v1/api")
-    @RegisterRestClient
-    public interface SampleService {
+    @Component
+    public class SampleService {
 
-        String url= "http://localhost:9080/movieReviewService";
 
-        @GET
-        @Path("{id}")
-        @Produces(MediaType.APPLICATION_JSON)
-        String find(@PathParam("id") int id);
+        String findAll(int id){
+            return "test";
+        }
     }
 }
