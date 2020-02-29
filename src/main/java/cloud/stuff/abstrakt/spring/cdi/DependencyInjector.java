@@ -1,9 +1,12 @@
-package iot.abstrakt.spring.management;
+package cloud.stuff.abstrakt.spring.cdi;
 
+import cloud.stuff.abstrakt.spring.Trackable;
+import cloud.stuff.abstrakt.spring.annotation.*;
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
 
-import iot.abstrakt.spring.annotation.*;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.http.HttpEntity;
@@ -17,16 +20,26 @@ import org.springframework.web.client.RestTemplate;
 import javax.ws.rs.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+/**
+ * Responsible for scanning Spring Framework all Beans in cdi.spring package.
+ * This Injects of API Client and Groovy Scripts used for transforming messages services
+ *
+ *
+ * @author Rod Santillan
+ * @since 1.0
+ */
 public class DependencyInjector implements Trackable {
     private static AutowireCapableBeanFactory factory
-            = new AnnotationConfigApplicationContext("iot.spring")
+            = new AnnotationConfigApplicationContext("cdi.spring")
             .getAutowireCapableBeanFactory();
+
+    private static final Log logger = LogFactory.getLog(DependencyInjector.class);
+
     private String correlationId;
     private static DependencyInjector INSTANCE;
 
@@ -35,7 +48,21 @@ public class DependencyInjector implements Trackable {
             INSTANCE = new DependencyInjector();
         return INSTANCE;
     }
+    private Object getAnnotatedFieldValue(Class<?> clazz, Class<? extends Annotation> annotation) throws IllegalArgumentException, IllegalAccessException {
+        for (Field field : clazz.getFields()) {
+            if(field.isAnnotationPresent(annotation))
+                return field.get(field.getName());
+        }
+        return null;
+    }
 
+    /**
+     * Injects of API Client and Groovy Scripts Shell
+     *
+     *
+     * @author Rod Santillan
+     * @since 1.0
+     */
     public void inject(Object obj) {
         List<Field> fields = new ArrayList<>();
         Class clazz = obj.getClass();
@@ -48,26 +75,31 @@ public class DependencyInjector implements Trackable {
         for (Field field : fields) {
 
 
-            if (field.isAnnotationPresent(ClientApiService.class)) {
+            if (field.isAnnotationPresent(ApiClient.class)) {
+
                 try {
                     ProxyApiClient client;
+                    try {
+                        String baseUrl = getAnnotatedFieldValue(field.getType(), BaseUrl.class).toString();
+                        String path = field.getType().getAnnotation(Path.class).value();
 
-                    String baseurl = field.getType().getField("baseurl").toString();
-                    String path = field.getType().getAnnotation(Path.class).value();
-                    if (obj instanceof Trackable) {
-
+                        if (field.getType().isAnnotationPresent(Oauth2.class)) {
+                            String accessTokenUri = getAnnotatedFieldValue(field.getType(), AccessTokenUri.class).toString();
+                            String clientId = getAnnotatedFieldValue(field.getType(), ClientId.class).toString();
+                            String grantType = getAnnotatedFieldValue(field.getType(), GrantType.class).toString();
+                            String scope = getAnnotatedFieldValue(field.getType(), Scope.class).toString();
+                            String clientSecret = getAnnotatedFieldValue(field.getType(), ClientSecret.class).toString();
+                            client = new ProxyApiClient(baseUrl + path
+                                    , accessTokenUri, clientId
+                                    , grantType, scope, clientSecret);
+                        } else
+                            client = new ProxyApiClient(baseUrl + path);
+                    } catch (Exception ex) {
+                        //In case of missing annotation above will result a null pointer and we inform people about it in the logs
+                        logger.error(ex);
+                        //Set default proxy with empty details
+                        client = new ProxyApiClient();
                     }
-                    if(field.isAnnotationPresent(Oauth2.class)) {
-                        String accessTokenUri = field.getType().getField("accessTokenUri").toString();
-                        String clientId = field.getType().getField("clientId").toString();
-                        String grantType = field.getType().getField("grantType").toString();
-                        String scope = field.getType().getField("scope").toString();
-                        String clientSecret = field.getType().getField("clientSecret").toString();
-                        client = new ProxyApiClient(baseurl + path
-                                , accessTokenUri , clientId
-                                , grantType, scope, clientSecret);
-                    }else
-                        client = new ProxyApiClient(baseurl + path);
 
                     field.setAccessible(true);
                     field.set(obj,
@@ -76,7 +108,8 @@ public class DependencyInjector implements Trackable {
                                     client));
 
                 } catch (Exception ex) {
-                    System.out.println(ex);
+                    logger.error(ex);
+
                 }
 
             }
@@ -90,7 +123,7 @@ public class DependencyInjector implements Trackable {
                                     proxy));
 
                 } catch (Exception ex) {
-                    System.out.println(ex);
+                    logger.error(ex);
                 }
 
             }
@@ -108,6 +141,13 @@ public class DependencyInjector implements Trackable {
         this.correlationId = id;
     }
 
+    /**
+     * Proxy Class for Groovy Shell Implementation
+     *
+     *
+     * @author Rod Santillan
+     * @since 1.0
+     */
     private class ProxyTransformer implements InvocationHandler {
 
         @Override
@@ -136,6 +176,13 @@ public class DependencyInjector implements Trackable {
         }
     }
 
+    /**
+     * Proxy Class for Spring Framework Resttemplate and Oauth2Resttemplate
+     *
+     *
+     * @author Rod Santillan
+     * @since 1.0
+     */
     private class ProxyApiClient implements InvocationHandler {
         private String url;
         private boolean usingOauth = false;
@@ -144,6 +191,16 @@ public class DependencyInjector implements Trackable {
         private String grantType;
         private String scope;
         private String clientSecret;
+
+        public ProxyApiClient() {
+            this.url = "";
+            this.accessTokenUri = "";
+            this.clientId = "";
+            this.grantType = "";
+            this.scope = "";
+            this.clientSecret = "";
+            this.usingOauth = false;
+        }
 
         public ProxyApiClient(String url) {
             this.url = url;
@@ -171,6 +228,9 @@ public class DependencyInjector implements Trackable {
             LinkedHashMap<String, Object> params = new LinkedHashMap<>();
             HttpHeaders headers = new HttpHeaders();
             Object payload = null;
+            String contentType = method.getAnnotation(ContentType.class).value();
+
+            headers.add(HttpHeaders.CONTENT_TYPE, contentType);
 
             HttpMethod httpMethod = HttpMethod.GET;
             if (method.isAnnotationPresent(PUT.class))
@@ -208,10 +268,14 @@ public class DependencyInjector implements Trackable {
                 entity = new HttpEntity<>(headers);
             else
                 entity = new HttpEntity<>(payload, headers);
-            if (usingOauth)
+            if (usingOauth) {
+                logger.debug("Sending to host with Oauth 2 " + this.url + path);
                 return exchangeWithOauth(this.url + path, httpMethod, entity, params);
-            else
+            }
+            else {
+                logger.debug("Sending to host " + this.url + path);
                 return exchange(this.url + path, httpMethod, entity, params);
+            }
         }
 
         private ResponseEntity exchangeWithOauth(String url, HttpMethod httpMethod, HttpEntity entity, LinkedHashMap<String, Object> params) {
@@ -223,12 +287,12 @@ public class DependencyInjector implements Trackable {
             clientCredentialsResourceDetails.setScope(Arrays.asList(this.scope.split(",")));
 
             OAuth2RestTemplate template = new OAuth2RestTemplate(clientCredentialsResourceDetails);
-            return template.exchange(this.url, httpMethod, entity, (Class<?>) Object.class, params);
+            return template.exchange(url, httpMethod, entity, (Class<?>) Object.class, params);
         }
 
         private ResponseEntity exchange(String url, HttpMethod httpMethod, HttpEntity entity, LinkedHashMap<String, Object> params) {
             RestTemplate template = new RestTemplate();
-            return template.exchange(this.url, httpMethod, entity, (Class<?>) Object.class, params);
+            return template.exchange(url, httpMethod, entity, (Class<?>) Object.class, params);
         }
     }
 

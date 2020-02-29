@@ -1,4 +1,4 @@
-package iot.abstrakt.spring.annotation;
+package cloud.stuff.abstrakt.spring.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
@@ -10,5 +10,5 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target(FIELD)
 @Retention(RUNTIME)
 @Documented
-public @interface ClientApiService {
+public @interface ClientSecret {
 }

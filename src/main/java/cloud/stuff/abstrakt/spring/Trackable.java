@@ -1,4 +1,4 @@
-package iot.abstrakt.spring.management;
+package cloud.stuff.abstrakt.spring;
 
 public interface Trackable {
 

@@ -1,15 +1,14 @@
-package iot.abstrakt.spring.annotation;
+package cloud.stuff.abstrakt.spring.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.PARAMETER;
+import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
-@Target(PARAMETER)
+@Target(FIELD)
 @Retention(RUNTIME)
 @Documented
-public @interface MapperParam {
-    String value();
+public @interface AccessTokenUri {
 }

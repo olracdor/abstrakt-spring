@@ -1,4 +1,4 @@
-package iot.abstrakt.spring.annotation;
+package cloud.stuff.abstrakt.spring.annotation;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.Retention;
